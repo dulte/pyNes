@@ -1,5 +1,12 @@
 import numpy as np
 
+"""
+Notes: 
+- To handle negative rel addressed, a np.int8 has been added when using addr_rel. 
+  Not sure if this is correct!
+
+"""
+
 
 class Py6502:
     def __init__(self):
@@ -81,6 +88,7 @@ class Py6502:
     def fetch(self) -> np.uint8:
         if(not self.lookup[self.opcode]["addrmode"] == self.IMP):
             self.fetched = self.read(self.addr_abs)
+
         return self.fetched
     """
     Function for getting and setting flags
@@ -104,7 +112,7 @@ class Py6502:
     """
 
     def reset(self):
-        self.addr_abs 0xFFFC
+        self.addr_abs = 0xFFFC
 
         lo = np.uint16(self.read(self.addr_abs))
         hi = np.uint16(self.read(self.addr_abs + 1))
@@ -141,7 +149,7 @@ class Py6502:
             self.stkp -= 1
 
 
-            self.addr_abs 0xFFFE
+            self.addr_abs = 0xFFFE
 
             lo = np.uint16(self.read(self.addr_abs))
             hi = np.uint16(self.read(self.addr_abs + 1))
@@ -168,7 +176,7 @@ class Py6502:
         self.stkp -= 1
 
 
-        self.addr_abs 0xFFFA
+        self.addr_abs = 0xFFFA
 
         lo = np.uint16(self.read(self.addr_abs))
         hi = np.uint16(self.read(self.addr_abs + 1))
@@ -181,23 +189,24 @@ class Py6502:
         if self.cycles == 0:
 
             self.opcode = self.read(self.pc)
-
+            
             self.setFlag("U", 1)
 
             self.pc += 1
 
             self.cycles = self.lookup[self.opcode]["cycles"]
-
+            
             ad_cycles_1 = self.lookup[self.opcode]["addrmode"]()
+            
             ad_cycles_2 = self.lookup[self.opcode]["operate"]()
-
-            self.cycles += (ad_cycles_1 & ad_cycles_1)
+            
+            self.cycles += (ad_cycles_1 & ad_cycles_2)
 
             self.setFlag("U", 1)
 
-            self.clock_count += 1
+        self.clock_count += 1
 
-            self.cycles -= 1
+        self.cycles -= 1
 
 
     def complete(self) -> bool:
@@ -246,7 +255,8 @@ class Py6502:
             return 0
 
     def IMM(self) -> np.uint8:
-        self.addr_abs = self.pc + 1 #Might be wrong 
+        self.addr_abs = self.pc  #Might be wrong 
+        self.pc += 1
         return 0
 
     def IMP(self) -> np.uint8:
@@ -370,7 +380,7 @@ class Py6502:
     def BCC(self) -> np.uint8:
         if self.getFlag("C") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -382,7 +392,7 @@ class Py6502:
     def BCS(self) -> np.uint8:
         if self.getFlag("C") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -394,7 +404,7 @@ class Py6502:
     def BEQ(self) -> np.uint8:
         if self.getFlag("Z") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -416,7 +426,7 @@ class Py6502:
     def BMI(self) -> np.uint8:
         if self.getFlag("N") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -428,8 +438,7 @@ class Py6502:
     def BNE(self) -> np.uint8:
         if self.getFlag("Z") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
-
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
 
@@ -440,7 +449,7 @@ class Py6502:
     def BPL(self) -> np.uint8:
         if self.getFlag("N") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -472,7 +481,7 @@ class Py6502:
     def BVC(self) -> np.uint8:
         if self.getFlag("V") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -484,7 +493,7 @@ class Py6502:
     def BVS(self) -> np.uint8:
         if self.getFlag("V") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + self.addr_rel
+            self.addr_abs = self.pc + np.int8(self.addr_rel)
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -495,15 +504,19 @@ class Py6502:
 
     def CLC(self) -> np.uint8:
         self.setFlag("C", 0)
+        return 0
 
     def CLD(self) -> np.uint8:
         self.setFlag("D", 0)
+        return 0
 
     def CLI(self) -> np.uint8:
         self.setFlag("I", 0)
+        return 0
 
     def CLV(self) -> np.uint8:
         self.setFlag("V", 0)
+        return 0
 
     def CMP(self) -> np.uint8:
         self.fetch()
@@ -620,7 +633,7 @@ class Py6502:
 
     def LDX(self) -> np.uint8:
         self.fetch()
-
+        
         self.x = self.fetched
         self.setFlag("Z", self.x == 0x00)
         self.setFlag("N", self.x & 0x80)
@@ -700,7 +713,7 @@ class Py6502:
 
     def ROL(self) -> np.uint8:
         self.fetch()
-        self.temp = np.uint16(self.fetch << 1) | self.getFlag("C")
+        self.temp = np.uint16(self.fetched << 1) | self.getFlag("C")
 
         self.setFlag("C", self.temp & 0xFF00)
         self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
@@ -772,12 +785,15 @@ class Py6502:
 
     def SEC(self) -> np.uint8:
         self.setFlag("C", 1)
+        return 0
 
     def SED(self) -> np.uint8:
         self.setFlag("D", 1)
+        return 0
 
     def SEI(self) -> np.uint8:
         self.setFlag("I", 1)
+        return 0
 
     def STA(self) -> np.uint8:
         self.write(self.addr_abs, self.a)
@@ -832,3 +848,6 @@ class Py6502:
 
     def XXX(self) -> np.uint8:
         return 0
+
+
+

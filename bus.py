@@ -29,15 +29,34 @@ class Bus:
 
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     bus = Bus()
+
+    s = "A2 0A 8E 00 00 A2 03 8E 01 00 AC 00 00 A9 00 18 6D 01 00 88 D0 FA 8D 02 00 EA EA EA".split()
+    offset = 0x8000
+
+    for val in s:
+        
+        bus.ram[offset] = int(val, 16)
+        offset += 1
+
+    bus.ram[0xFFFC] = 0x00
+    bus.ram[0xFFFD] = 0x80
+    bus.cpu.reset()
+
     
-    bus.ram[4] = 0x0A
 
-    bus.cpu.addr_abs = 2
-    bus.cpu.opcode = 0
+    while(bus.cpu.pc != 0):
+        print("pc: ",hex(bus.cpu.pc), "op: ", hex(bus.ram[bus.cpu.pc]), "ram 0:", hex(int(bus.ram[0])), "ram 1:", hex(int(bus.ram[1])), "a: ",hex(bus.cpu.a),"x: ", hex(bus.cpu.x), "y: ", hex(bus.cpu.y))
+        while(True):
+            
+        
+            bus.cpu.clock()
+            if bus.cpu.complete():
+                break
 
-    print(bus.cpu.fetch())
+    print("10*3 = ",bus.ram[2])
+
     
 
 
