@@ -104,16 +104,104 @@ class Py6502:
     """
 
     def reset(self):
-        pass
+        self.addr_abs 0xFFFC
+
+        lo = np.uint16(self.read(self.addr_abs))
+        hi = np.uint16(self.read(self.addr_abs + 1))
+
+        self.pc = (hi << 8) | lo
+
+        self.a = 0
+        self.x = 0
+        self.y = 0
+
+        self.stkp = 0xFD
+        self.status = 0x00 | self.flags["U"]
+
+        self.addr_rel = 0x0000
+        self.addr_abs = 0x0000
+        self.fetched = 0x00
+
+        self.cycles = 8
 
     def irq(self):
-        pass
+        if self.getFlag("I") == 0:
+
+            self.write(0x0100 + self.stkp, (self.pc >> 8) & 0x00FF)
+            self.stkp -= 1
+
+            self.write(0x0100 + self.stkp, self.pc & 0x00FF)
+            self.stkp -= 1
+
+            self.setFlag("B", 0)
+            self.setFlag("U", 1)
+            self.setFlag("I", 1)
+
+            self.write(0x0100 + self.stkp, self.status)
+            self.stkp -= 1
+
+
+            self.addr_abs 0xFFFE
+
+            lo = np.uint16(self.read(self.addr_abs))
+            hi = np.uint16(self.read(self.addr_abs + 1))
+
+            self.pc = (hi << 8) | lo
+
+            self.cycles = 7
+
+
 
     def nmi(self):
-        pass
+
+        self.write(0x0100 + self.stkp, (self.pc >> 8) & 0x00FF)
+        self.stkp -= 1
+
+        self.write(0x0100 + self.stkp, self.pc & 0x00FF)
+        self.stkp -= 1
+
+        self.setFlag("B", 0)
+        self.setFlag("U", 1)
+        self.setFlag("I", 1)
+
+        self.write(0x0100 + self.stkp, self.status)
+        self.stkp -= 1
+
+
+        self.addr_abs 0xFFFA
+
+        lo = np.uint16(self.read(self.addr_abs))
+        hi = np.uint16(self.read(self.addr_abs + 1))
+
+        self.pc = (hi << 8) | lo
+
+        self.cycles = 7
 
     def clock(self):
-        pass
+        if self.cycles == 0:
+
+            self.opcode = self.read(self.pc)
+
+            self.setFlag("U", 1)
+
+            self.pc += 1
+
+            self.cycles = self.lookup[self.opcode]["cycles"]
+
+            ad_cycles_1 = self.lookup[self.opcode]["addrmode"]()
+            ad_cycles_2 = self.lookup[self.opcode]["operate"]()
+
+            self.cycles += (ad_cycles_1 & ad_cycles_1)
+
+            self.setFlag("U", 1)
+
+            self.clock_count += 1
+
+            self.cycles -= 1
+
+
+    def complete(self) -> bool:
+        return self.cycles == 0
     """
     Below are the addressing mode functions
     """
@@ -418,82 +506,252 @@ class Py6502:
         self.setFlag("V", 0)
 
     def CMP(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.temp = np.uint16(self.a) - np.uint16(self.fetched)
+
+        self.setFlag("C", self.a >= self.fetched)
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+        return 1
+
 
     def CPX(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.temp = np.uint16(self.x) - np.uint16(self.fetched)
+
+        self.setFlag("C", self.x >= self.fetched)
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+        return 1
 
     def CPY(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.temp = np.uint16(self.y) - np.uint16(self.fetched)
+
+        self.setFlag("C", self.y >= self.fetched)
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+        return 1
 
     def DEC(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.temp = self.fetched - 1
+        self.write(self.addr_abs, self.temp & 0x00FF)
+
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+
+        return 0
+
 
     def DEX(self) -> np.uint8:
-        pass
+        self.x -= 1
+
+        self.setFlag("Z", self.x == 0x00)
+        self.setFlag("N", self.x & 0x80)
+        return 0
 
     def DEY(self) -> np.uint8:
-        pass
+        self.y -= 1
+
+        self.setFlag("Z", self.y == 0x00)
+        self.setFlag("N", self.y & 0x80)
+        return 0
 
     def EOR(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.a = self.a ^ self.fetched
+
+        self.setFlag("Z", self.a == 0x00)
+        self.setFlag("N", self.a & 0x80)
+
+        return 1
 
     def INC(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.temp = self.fetched + 1
+        self.write(self.addr_abs, self.temp & 0x00FF)
+
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+
+        return 0
 
     def INX(self) -> np.uint8:
-        pass
+        self.x += 1
+
+        self.setFlag("Z", self.x == 0x00)
+        self.setFlag("N", self.x & 0x80)
+        return 0
 
     def INY(self) -> np.uint8:
-        pass
+        self.y += 1
+
+        self.setFlag("Z", self.y == 0x00)
+        self.setFlag("N", self.y & 0x80)
+        return 0
 
     def JMP(self) -> np.uint8:
-        pass
+        self.pc = self.addr_abs
+        return 0
 
     def JSR(self) -> np.uint8:
-        pass
+        self.pc -= 1
+
+        self.write(0x0100 + self.stkp, (self.pc << 8) & 0x00FF)
+        self.stkp -= 1
+
+        self.write(0x0100 + self.stkp, self.pc << 8 & 0x00FF)
+        self.stkp -= 1
+
+        self.pc = self.addr_abs
+
+        return 0
+
 
     def LDA(self) -> np.uint8:
-        pass
+        self.fetch()
+
+        self.a = self.fetched
+        self.setFlag("Z", self.a == 0x00)
+        self.setFlag("N", self.a & 0x80)
+
+        return 1
 
     def LDX(self) -> np.uint8:
-        pass
+        self.fetch()
+
+        self.x = self.fetched
+        self.setFlag("Z", self.x == 0x00)
+        self.setFlag("N", self.x & 0x80)
+
+        return 1
 
     def LDY(self) -> np.uint8:
-        pass
+        self.fetch()
+
+        self.y = self.fetched
+        self.setFlag("Z", self.y == 0x00)
+        self.setFlag("N", self.y & 0x80)
+
+        return 1
 
     def LSR(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.setFlag("C", self.fetched & 0x0001)
+        self.temp = self.fetched >> 1
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+
+        if self.lookup[self.opcode]["addrmode"] == self.IMP:
+            self.a = self.temp & 0x00FF
+        else:
+            self.write(self.addr_abs, self.temp &0x00FF)
+
+        return 0
 
     def NOP(self) -> np.uint8:
-        pass
+        if self.opcode in [0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC]:
+            return 1
+        else:
+            return 0
 
     def ORA(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.a = self.a | self.fetched
+
+        self.setFlag("Z", self.a == 0x00)
+        self.setFlag("N", self.a & 0x80)
+
+        return 1
 
     def PHA(self) -> np.uint8:
-        pass
+        self.write(0x0100 + self.stkp, self.a)
+        self.stkp -= 1
+        return 0
 
     def PHP(self) -> np.uint8:
-        pass
+        B = self.flags["B"]
+        U = self.flags["U"]
+        self.write(0x0100 + self.stkp, self.status | B | U)
+
+        self.setFlag("B", 0)
+        self.setFlag("U", 0)
+
+        self.stkp -= 1
+
+        return 0
 
     def PLA(self) -> np.uint8:
-        pass
+        self.stkp += 1
+        self.a = self.read(0x0100 + self.stkp)
+        self.setFlag("Z", self.a == 0x00)
+        self.setFlag("N", self.a & 0x80)
+
+        return 0
 
     def PLP(self) -> np.uint8:
-        pass
+        self.stkp += 1
+        self.status = self.read(0x0100 + self.stkp)
+        self.setFlag("U", 1)
+        
+        return 0
+        
 
     def ROL(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.temp = np.uint16(self.fetch << 1) | self.getFlag("C")
+
+        self.setFlag("C", self.temp & 0xFF00)
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+
+        if self.lookup[self.opcode]["addrmode"] == self.IMP:
+            self.a = self.temp & 0x00FF
+        else:
+            self.write(self.addr_abs, self.temp & 0x00FF)
+        
+        return 0
 
     def ROR(self) -> np.uint8:
-        pass
+        self.fetch()
+        self.temp = np.uint16(self.fetch << 7) | (self.fetched >> 1)
+
+        self.setFlag("C", self.fetched & 0x01)
+        self.setFlag("Z", (self.temp & 0x00FF) == 0x0000)
+        self.setFlag("N", self.temp & 0x0080)
+
+        if self.lookup[self.opcode]["addrmode"] == self.IMP:
+            self.a = self.temp & 0x00FF
+        else:
+            self.write(self.addr_abs, self.temp & 0x00FF)
+        
+        return 0
 
     def RTI(self) -> np.uint8:
-        pass
+        self.stkp += 1
+        self.status = self.read(0x0100 + self.stkp)
+        self.status &= ~self.flags["B"]
+        self.status &= ~self.flags["U"]
+
+        self.stkp += 1
+        self.pc = np.uint16(self.read(0x0100 + self.stkp))
+        self.stkp += 1
+
+        self.pc |= np.uint16(self.read(0x0100 + self.stkp)) << 8
+
+        return 0
+
 
     def RTS(self) -> np.uint8:
-        pass
+
+        self.stkp += 1
+        self.pc = np.uint16(self.read(0x0100 + self.stkp))
+        self.stkp += 1
+
+        self.pc |= np.uint16(self.read(0x0100 + self.stkp)) << 8
+
+        return 0
 
     def SBC(self) -> np.uint8:
         self.fetch()
@@ -513,40 +771,64 @@ class Py6502:
         return 1
 
     def SEC(self) -> np.uint8:
-        pass
+        self.setFlag("C", 1)
 
     def SED(self) -> np.uint8:
-        pass
+        self.setFlag("D", 1)
 
     def SEI(self) -> np.uint8:
-        pass
+        self.setFlag("I", 1)
 
     def STA(self) -> np.uint8:
-        pass
+        self.write(self.addr_abs, self.a)
+        return 0
 
     def STX(self) -> np.uint8:
-        pass
+        self.write(self.addr_abs, self.x)
+        return 0
 
     def STY(self) -> np.uint8:
-        pass
+        self.write(self.addr_abs, self.y)
+        return 0
 
     def TAX(self) -> np.uint8:
-        pass
+        self.x = self.a
+        self.setFlag("Z", self.x == 0x00)
+        self.setFlag("N", self.x & 0x80)
+
+        return 0
 
     def TAY(self) -> np.uint8:
-        pass
+        self.y = self.a
+        self.setFlag("Z", self.y == 0x00)
+        self.setFlag("N", self.y & 0x80)
+
+        return 0
 
     def TSX(self) -> np.uint8:
-        pass
+        self.x = self.stkp
+        self.setFlag("Z", self.x == 0x00)
+        self.setFlag("N", self.x & 0x80)
+
+        return 0
 
     def TXA(self) -> np.uint8:
-        pass
+        self.a = self.x
+        self.setFlag("Z", self.a == 0x00)
+        self.setFlag("N", self.a & 0x80)
+
+        return 0
 
     def TXS(self) -> np.uint8:
-        pass
+        self.stkp = self.x
+        return 0
 
     def TYA(self) -> np.uint8:
-        pass
+        self.a = self.y
+        self.setFlag("Z", self.a == 0x00)
+        self.setFlag("N", self.a & 0x80)
+
+        return 0
 
     def XXX(self) -> np.uint8:
-        pass
+        return 0
