@@ -4,6 +4,8 @@ import numpy as np
 Notes: 
 - To handle negative rel addressed, a np.int8 has been added when using addr_rel. 
   Not sure if this is correct!
+- Tried to handle it by taking (self.pc + self.addr_rel) & 0xFFFF instead, not causing overflow
+- Same error will probably make SBC give wrong answer
 
 """
 
@@ -75,10 +77,10 @@ class Py6502:
     """
 
     def read(self, address: np.uint16) -> np.uint8:
-        return self.bus.read(address)
+        return self.bus.cpuRead(address)
 
     def write(self, address: np.uint16, data: np.uint8):
-        return self.bus.write(address, data)
+        return self.bus.cpuWrite(address, data)
 
 
 
@@ -380,7 +382,7 @@ class Py6502:
     def BCC(self) -> np.uint8:
         if self.getFlag("C") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -392,7 +394,7 @@ class Py6502:
     def BCS(self) -> np.uint8:
         if self.getFlag("C") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -404,7 +406,7 @@ class Py6502:
     def BEQ(self) -> np.uint8:
         if self.getFlag("Z") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -426,7 +428,7 @@ class Py6502:
     def BMI(self) -> np.uint8:
         if self.getFlag("N") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -438,7 +440,8 @@ class Py6502:
     def BNE(self) -> np.uint8:
         if self.getFlag("Z") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            #self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
 
@@ -449,7 +452,7 @@ class Py6502:
     def BPL(self) -> np.uint8:
         if self.getFlag("N") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -481,7 +484,7 @@ class Py6502:
     def BVC(self) -> np.uint8:
         if self.getFlag("V") == 0:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -493,7 +496,7 @@ class Py6502:
     def BVS(self) -> np.uint8:
         if self.getFlag("V") == 1:
             self.cycles += 1
-            self.addr_abs = self.pc + np.int8(self.addr_rel)
+            self.addr_abs = (self.pc + self.addr_rel) & 0xFFFF
 
             if (self.addr_abs & 0xFF00) != (self.pc & 0xFF00): #Check if jump page
                 self.cycles += 1
@@ -851,3 +854,109 @@ class Py6502:
 
 
 
+
+    def disassemble(self, start: np.uint16, stop: np.uint16) -> dict:
+        addr = start
+        value = 0x00
+        lo = 0x00
+        hi = 0x00
+
+        lines = {}
+        line_addr = 0
+
+        while addr <= stop:
+            line_addr = addr
+
+            string = "$" + hex(addr) + ": "
+
+            opcode = self.bus.cpuRead(addr)
+
+            addr += 1
+
+            string += self.lookup[opcode]["name"] + " "
+
+            if self.lookup[opcode]["addrmode"] == self.IMP:
+                string += " {IMP}"
+            elif self.lookup[opcode]["addrmode"] == self.IMM:
+                value = self.bus.cpuRead(addr)
+                addr += 1
+
+                string += "#$" + hex(value) + " {IMM}"
+            elif self.lookup[opcode]["addrmode"] == self.ZP0:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = 0x00
+
+                string += "$" + hex(lo) + " {ZP0}"
+
+            elif self.lookup[opcode]["addrmode"] == self.ZPX:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = 0x00
+
+                string += "$" + hex(lo) + " X {ZPX}"
+            elif self.lookup[opcode]["addrmode"] == self.ZPY:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = 0x00
+
+                string += "$" + hex(lo) + " Y {ZPY}"
+
+            elif self.lookup[opcode]["addrmode"] == self.IZX:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = 0x00
+
+                string += "($" + hex(lo) + "), X {IZX}"
+
+            elif self.lookup[opcode]["addrmode"] == self.IZY:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = 0x00
+
+                string += "($" + hex(lo) + "), Y {IZY}"
+
+            elif self.lookup[opcode]["addrmode"] == self.ABS:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = self.bus.cpuRead(addr)
+                addr += 1
+
+                string += "$" + hex((hi << 8) | lo) + " {ABS}"
+
+            elif self.lookup[opcode]["addrmode"] == self.ABX:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = self.bus.cpuRead(addr)
+                addr += 1
+
+                string += "$" + hex((hi << 8) | lo) + ", X {ABX}"
+
+            elif self.lookup[opcode]["addrmode"] == self.ABY:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = self.bus.cpuRead(addr)
+                addr += 1
+
+                string += "$" + hex((hi << 8) | lo) + ", Y {ABY}"
+            
+            elif self.lookup[opcode]["addrmode"] == self.IND:
+                lo = self.bus.cpuRead(addr)
+                addr += 1
+                hi = self.bus.cpuRead(addr)
+                addr += 1
+
+                string += "($" + hex((hi << 8) | lo) + ") {IND}"
+
+            elif self.lookup[opcode]["addrmode"] == self.REL:
+                value = self.bus.cpuRead(addr)
+                addr += 1
+                
+
+                string += "$" + hex(value) + " [$" + hex(addr + value) + "] {REL}"
+
+            
+            lines[line_addr] = string
+
+        
+        return lines
