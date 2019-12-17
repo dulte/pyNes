@@ -121,6 +121,7 @@ class Py6502:
 
         self.pc = (hi << 8) | lo
 
+
         self.a = 0
         self.x = 0
         self.y = 0

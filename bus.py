@@ -1,5 +1,6 @@
 from py6502 import Py6502
 import numpy as np
+from py2C02 import Py2C02
 
 class Bus:
     def __init__(self):
@@ -12,7 +13,7 @@ class Bus:
         self.cpuRam = np.zeros(2048, dtype=np.uint8)
 
         # Creates the ppu
-        self.ppu = None
+        self.ppu = Py2C02()
 
         # Creates the cartridge
         self.cart = None
@@ -28,7 +29,10 @@ class Bus:
 
     def cpuRead(self, address: np.uint16) -> np.uint8:
         data = np.uint8(0)
-        if address >= 0x0000 and address <= 0x1FFF:
+        is_cart, cart_data = self.cart.cpuRead(address)
+        if is_cart:
+            data = cart_data
+        elif address >= 0x0000 and address <= 0x1FFF:
             data = self.cpuRam[address & 0x07FF]
         elif address >= 0x2000 and address <= 0x3FFF:
             data = self.ppu.cpuRead(address & 0x0007)
@@ -37,7 +41,10 @@ class Bus:
 
     def cpuWrite(self, address: np.uint16, data: np.uint8):
 
-        if address >= 0x0000 and address <= 0x1FFF:
+        is_cart, cart_data = self.cart.cpuRead(address)
+        if is_cart:
+            pass
+        elif address >= 0x0000 and address <= 0x1FFF:
             self.cpuRam[address & 0x07FF] = np.uint8(data)
         
         elif (address >= 0x2000 and address <= 0x3FFF):
@@ -50,7 +57,7 @@ class Bus:
 
     def insertCartridge(self, cart):
         self.cart = cart
-        ppu.ConnectCartridge(cart)
+        self.ppu.connectCartridge(cart)
 
     
     """
@@ -92,9 +99,11 @@ class Bus:
         return asm
 
     def step_test(self):
+        
+    
         while(True):
- 
-            self.cpu.clock()
+
+            self.clock()
             if self.cpu.complete():
                 break
 
